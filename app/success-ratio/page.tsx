@@ -4,71 +4,96 @@ import { useEffect, useState } from 'react'
 import { createClient, getAccessToken } from '@/app/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 
-interface SuccessData {
+interface StrategyStat {
+  strategy: string
+  wins: number
+  total: number
+  successRate: number
+}
+
+interface OverallStats {
   success_ratio: number
   wins: number
   losses: number
   total_signals: number
 }
 
-export default function SuccessRatio() {
+export default function SuccessRatioPage() {
   const router = useRouter()
-  const [data, setData] = useState<SuccessData | null>(null)
+  const [overall, setOverall] = useState<OverallStats | null>(null)
+  const [strategies, setStrategies] = useState<StrategyStat[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) router.push('/signin')
-      else fetchSuccessRatio()
+      else fetchStats()
     })
   }, [])
 
-  const fetchSuccessRatio = async () => {
-    setLoading(true)
-    try {
-      const token = await getAccessToken()
-      const response = await fetch('/api/success-ratio', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const result = await response.json()
-      if (result.success_ratio !== undefined) setData(result)
-    } catch (error) {
-      console.error('Error fetching success ratio:', error)
-    } finally {
-      setLoading(false)
-    }
+  const fetchStats = async () => {
+    const token = await getAccessToken()
+    if (!token) return
+    const res = await fetch('/api/success-ratio', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    const data = await res.json()
+    setOverall(data.overall)
+    setStrategies(data.per_strategy)
+    setLoading(false)
   }
 
   if (loading) return <div className="text-center py-8">Loading statistics...</div>
-  if (!data || data.total_signals === 0) {
-    return (
-      <div className="max-w-2xl mx-auto text-center">
-        <div className="bg-white rounded-lg shadow-md p-8">
-          <h1 className="text-3xl font-bold mb-4">Success Ratio</h1>
-          <p className="text-gray-600 mb-4">No completed signals yet.</p>
-          <button onClick={() => router.push('/signals')} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">View My Signals</button>
-        </div>
-      </div>
-    )
-  }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold text-center mb-8">Success Ratio</h1>
-      <div className="bg-white rounded-lg shadow-md p-8">
-        <div className="text-center mb-8">
-          <div className="text-6xl font-bold text-blue-600 mb-2">{data.success_ratio.toFixed(1)}%</div>
-          <p className="text-gray-600">Success Rate</p>
+
+      {/* Overall card */}
+      {/* <div className="bg-white rounded-lg shadow-md p-6 mb-8 text-center">
+        <div className="text-5xl font-bold text-blue-600 mb-2">
+          {overall?.success_ratio.toFixed(1)}%
         </div>
-        <div className="grid grid-cols-3 gap-4 text-center border-t pt-6">
-          <div><div className="text-2xl font-bold text-green-600">{data.wins}</div><p className="text-sm text-gray-500">Wins</p></div>
-          <div><div className="text-2xl font-bold text-red-600">{data.losses}</div><p className="text-sm text-gray-500">Losses</p></div>
-          <div><div className="text-2xl font-bold text-gray-700">{data.total_signals}</div><p className="text-sm text-gray-500">Total Signals</p></div>
+        <p className="text-gray-600">Overall Success Rate</p>
+        <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
+          <div><span className="font-bold text-green-600">{overall?.wins}</span> Wins</div>
+          <div><span className="font-bold text-red-600">{overall?.losses}</span> Losses</div>
+          <div><span className="font-bold">{overall?.total_signals}</span> Total</div>
         </div>
-        <div className="mt-6 bg-gray-100 rounded-full h-4 overflow-hidden">
-          <div className="bg-green-500 h-full transition-all duration-500" style={{ width: `${data.success_ratio}%` }} />
-        </div>
+      </div> */}
+
+      {/* Per‑strategy table */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold mb-4">Performance by Strategy</h2>
+        {strategies.length === 0 ? (
+          <p className="text-gray-500 text-center">No completed signals yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Strategy</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Wins</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Success Rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {strategies.map((s) => (
+                  <tr key={s.strategy}>
+                    <td className="px-6 py-4 whitespace-nowrap font-medium">{s.strategy}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-green-600">{s.wins}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{s.total}</td>
+                    <td className="px-6 py-4 whitespace-nowrap font-bold">
+                      {s.successRate.toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

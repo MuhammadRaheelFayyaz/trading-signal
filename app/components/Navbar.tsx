@@ -30,7 +30,7 @@ export default function Navbar() {
 
   const navLinks = [
     { href: '/', label: 'Generate' },
-    { href: '/signals', label: 'My Signals' },
+    // { href: '/signals', label: 'My Signals' },
     { href: '/success-ratio', label: 'Success Ratio' },
   ]
 
