@@ -55,7 +55,7 @@ async function validateSignalOutcome(signal: any) {
   }
 }
 
-export async function POST(req: Request) {
+export async function GET(req: Request) {
   try {
     const { data: signals, error } = await supabaseAdmin
       .from('signals')
