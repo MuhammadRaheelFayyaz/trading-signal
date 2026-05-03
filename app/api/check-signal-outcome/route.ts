@@ -8,7 +8,6 @@ const supabaseAdmin = createAdminClient(
 
 const TWELVEDATA_API_KEY = process.env.TWELVEDATA_API_KEY;
 
-// Map your timeframe to Twelve Data interval
 function mapTimeframeToInterval(timeframe: string): string {
   const map: Record<string, string> = {
     '1min': '1min',
@@ -23,10 +22,9 @@ function mapTimeframeToInterval(timeframe: string): string {
 
 async function validateSignalOutcome(signal: any) {
   const startDate = new Date(signal.created_at).toISOString().split('T')[0];
-  const endDate = new Date(signal.expires_at).toISOString().split('T')[0];
+  const endDate = new Date().toISOString().split('T')[0]; // up to today
   const interval = mapTimeframeToInterval(signal.timeframe);
 
-  // Twelve Data expects symbols like "EUR/USD" as is
   const url = `https://api.twelvedata.com/time_series?symbol=${signal.symbol}&interval=${interval}&start_date=${startDate}&end_date=${endDate}&apikey=${TWELVEDATA_API_KEY}`;
 
   try {
@@ -37,7 +35,6 @@ async function validateSignalOutcome(signal: any) {
     for (const bar of data.values) {
       const high = parseFloat(bar.high);
       const low = parseFloat(bar.low);
-      const close = parseFloat(bar.close);
 
       if (signal.direction === 'long') {
         if (high >= signal.take_profit) return 'win';
@@ -47,8 +44,8 @@ async function validateSignalOutcome(signal: any) {
         if (high >= signal.stop_loss) return 'loss';
       }
     }
-    // If price never hit SL or TP, it's a win (closed in profit)
-    return 'win';
+    // No hit yet – return null (keep checking later)
+    return null;
   } catch (error) {
     console.error(`Error validating signal ${signal.id}:`, error);
     return null;
@@ -57,11 +54,11 @@ async function validateSignalOutcome(signal: any) {
 
 export async function GET(req: Request) {
   try {
+    // Only get signals that have no outcome yet (active)
     const { data: signals, error } = await supabaseAdmin
       .from('signals')
       .select('*')
-      .is('outcome', null)
-      .lt('expires_at', new Date().toISOString());
+      .is('outcome', null);
 
     if (error) throw error;
 

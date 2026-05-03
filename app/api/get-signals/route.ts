@@ -5,14 +5,12 @@ export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.split(' ')[1]
-    
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const supabase = await createClient()
     const { data: { user }, error: userError } = await supabase.auth.getUser(token)
-    
     if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -27,15 +25,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    const now = new Date()
-    const signalsWithValidity = signals.map(signal => ({
-      ...signal,
-      is_valid: new Date(signal.expires_at) > now,
-      is_expired: new Date(signal.expires_at) <= now
-    }))
-
-    return NextResponse.json({ signals: signalsWithValidity })
-    
+    // No expiration calculation – just return signals as is
+    return NextResponse.json({ signals })
   } catch (error) {
     console.error('Get signals error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

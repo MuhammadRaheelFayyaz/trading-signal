@@ -15,21 +15,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { symbol, timeframe, rrRatio, strategy, direction, entry, stopLoss, takeProfit } = await request.json()
+    const { strategyName, description } = await request.json()
+    if (!strategyName || !description) {
+      return NextResponse.json({ error: 'Strategy name and description required' }, { status: 400 })
+    }
 
-    const { data: signal, error: insertError } = await supabase
-      .from('signals')
+    const { data, error: insertError } = await supabase
+      .from('strategy_requests')
       .insert({
         user_id: user.id,
-        symbol,
-        timeframe,
-        rr_ratio: rrRatio,
-        strategy,
-        direction,
-        entry_price: entry,
-        stop_loss: stopLoss,
-        take_profit: takeProfit,
-        // No expires_at
+        user_email: user.email,
+        strategy_name: strategyName,
+        description,
+        status: 'pending'
       })
       .select()
       .single()
@@ -38,9 +36,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: insertError.message }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true, signal })
+    return NextResponse.json({ success: true, request: data })
   } catch (error) {
-    console.error('Save signal error:', error)
+    console.error('Submit strategy request error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

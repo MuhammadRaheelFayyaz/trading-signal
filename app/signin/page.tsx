@@ -26,7 +26,34 @@ export default function SignIn() {
     if (error) {
       setError(error.message)
     } else {
-      router.push('/')
+        // After successful sign in, get user profile
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_active, is_admin, payment_date')
+            .eq('id', user.id)
+            .single()
+          
+          // Check payment overdue (30+ days) for non‑admins
+          if (!profile?.is_admin && profile?.payment_date) {
+            const daysSincePayment = Math.floor((Date.now() - new Date(profile.payment_date).getTime()) / (1000*60*60*24))
+            if (daysSincePayment > 30) {
+              // Auto‑deactivate
+              await supabase.from('profiles').update({ is_active: false }).eq('id', user.id)
+              await supabase.auth.signOut()
+              setError('Your subscription has expired. Please contact support to renew.')
+              return
+            }
+          }
+          
+          if (!profile?.is_active) {
+            await supabase.auth.signOut()
+            setError('Your account is inactive. Please contact support.')
+            return
+          }
+        }
+        router.push('/')
     }
     setLoading(false)
   }
