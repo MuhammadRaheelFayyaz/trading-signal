@@ -21,8 +21,11 @@ function mapTimeframeToInterval(timeframe: string): string {
 }
 
 async function validateSignalOutcome(signal: any) {
+  // Convert creation time to Date object
+  const entryTime = new Date(signal.created_at).getTime();
+
   const startDate = new Date(signal.created_at).toISOString().split('T')[0];
-  const endDate = new Date().toISOString().split('T')[0]; // up to today
+  const endDate = new Date().toISOString().split('T')[0];
   const interval = mapTimeframeToInterval(signal.timeframe);
 
   const url = `https://api.twelvedata.com/time_series?symbol=${signal.symbol}&interval=${interval}&start_date=${startDate}&end_date=${endDate}&apikey=${TWELVEDATA_API_KEY}`;
@@ -33,6 +36,11 @@ async function validateSignalOutcome(signal: any) {
     if (!data.values) return null;
 
     for (const bar of data.values) {
+      // Parse bar timestamp (Twelve Data returns datetime like "2024-01-15 14:30:00")
+      const barTime = new Date(bar.datetime).getTime();
+      // Skip bars that occurred at or before signal creation
+      if (barTime <= entryTime) continue;
+
       const high = parseFloat(bar.high);
       const low = parseFloat(bar.low);
 
@@ -44,7 +52,7 @@ async function validateSignalOutcome(signal: any) {
         if (high >= signal.stop_loss) return 'loss';
       }
     }
-    // No hit yet – return null (keep checking later)
+    // No hit after entry
     return null;
   } catch (error) {
     console.error(`Error validating signal ${signal.id}:`, error);
