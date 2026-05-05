@@ -38,10 +38,7 @@ async function validateSignalOutcome(signal: any) {
 
     let entryHit = false;
 
-    for (const bar of data.values) {
-      const barTime = new Date(bar.datetime.replace(' ', 'T') + 'Z').getTime();
-      if (barTime <= entryTime) continue;
-
+    for (const bar of data.values) { 
       const high = parseFloat(bar.high);
       const low = parseFloat(bar.low);
 
