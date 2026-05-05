@@ -88,3 +88,12 @@ export interface ActiveTrade {
   entry_date: string
   notes: string
 }
+
+
+export interface Candle {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  timestamp: Date;
+}

@@ -24,15 +24,11 @@ async function validateSignalOutcome(signal: any) {
   // Convert creation time to Date object
   const entryTime = new Date(signal.created_at).getTime();
 
-  const startDate = new Date(signal.created_at).toISOString().split('T')[0];
-  const endDate = new Date().toISOString().split('T')[0];
   const interval = mapTimeframeToInterval(signal.timeframe);
-
-  const url = `https://api.twelvedata.com/time_series?symbol=${signal.symbol}&interval=${interval}&start_date=${startDate}&end_date=${endDate}&apikey=${TWELVEDATA_API_KEY}`;
-
+const url = `https://api.twelvedata.com/time_series?symbol=${signal.symbol}&interval=${interval}&outputsize=500&apikey=${TWELVEDATA_API_KEY}`;
   try {
     const res = await fetch(url);
-    const data = await res.json();
+    const data = await res.json()
     if (!data.values) return null;
 
     for (const bar of data.values) {
@@ -40,7 +36,6 @@ async function validateSignalOutcome(signal: any) {
       const barTime = new Date(bar.datetime).getTime();
       // Skip bars that occurred at or before signal creation
       if (barTime <= entryTime) continue;
-
       const high = parseFloat(bar.high);
       const low = parseFloat(bar.low);
 
@@ -48,7 +43,8 @@ async function validateSignalOutcome(signal: any) {
         if (high >= signal.take_profit) return 'win';
         if (low <= signal.stop_loss) return 'loss';
       } else { // short
-        if (low <= signal.take_profit) return 'win';
+        if (low <= signal.take_profit) {
+          return 'win'};
         if (high >= signal.stop_loss) return 'loss';
       }
     }

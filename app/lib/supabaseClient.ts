@@ -8,7 +8,9 @@ export const createClient = () =>
 
 // Helper to get the current session's access token
 export async function getAccessToken() {
+  console.log('Fetching access token...')
   const supabase = createClient()
   const { data: { session } } = await supabase.auth.getSession()
+  console.log('Current session:', session)
   return session?.access_token
 }

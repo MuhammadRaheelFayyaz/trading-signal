@@ -1,14 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient, getAccessToken } from '@/app/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
+import { assets, timeFrames } from '@/app/data'
 import { SignalResult, Signal } from '@/app/types'
-import { assets, timeFrames, strategies } from '@/app/data'
 import SignalCard from '@/app/components/SignalCard'
-import SignalGeneratorForm from '@/app/components/SignalGeneratorForm'
 import GeneratedSignalDisplay from '@/app/components/GeneratedSignalDisplay'
-import SignalsListStatus from '@/app/components/SignalsListStatus'
 
 export default function GeneratePage() {
   const router = useRouter()
@@ -19,208 +17,164 @@ export default function GeneratePage() {
   const [user, setUser] = useState<any>(null)
   const [savedSignals, setSavedSignals] = useState<Signal[]>([])
   const [fetchingSignals, setFetchingSignals] = useState(false)
-  const [filterStrategy, setFilterStrategy] = useState<string>('all')
   const supabase = createClient()
+
   const [formData, setFormData] = useState({
     symbol: 'EUR/USD',
     timeframe: '1h',
-    rrRatio: 2,
-    strategy: 'demand_supply'
+    rrRatio: 2
   })
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        router.push('/signin')
-        return
-      }
-      setUser(session.user)
-      fetchSavedSignals()
+      if (!session) router.push('/signin')
+      else { setUser(session.user); fetchSavedSignals() }
     })
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        router.push('/signin')
-      } else {
-        setUser(session.user)
-        fetchSavedSignals()
-      }
+      if (!session) router.push('/signin')
+      else { setUser(session.user); fetchSavedSignals() }
     })
-
     return () => subscription.unsubscribe()
-  }, [supabase, router])
+  }, [])
 
-  const fetchSavedSignals = async () => {
+  const fetchSavedSignals = useCallback(async () => {
     setFetchingSignals(true)
-    try {
-      const token = await getAccessToken()
-      if (!token) return
-      const response = await fetch('/api/get-signals', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const data = await response.json()
-      if (data.signals) setSavedSignals(data.signals)
-    } catch (error) {
-      console.error('Error fetching signals:', error)
-    } finally {
-      setFetchingSignals(false)
-    }
-  }
+    const token = await getAccessToken()
+    if (!token) return
+    const res = await fetch('/api/get-signals', { headers: { Authorization: `Bearer ${token}` } })
+    const data = await res.json()
+    if (data.signals) setSavedSignals(data.signals)
+    setFetchingSignals(false)
+  }, [])
 
   const handleGenerateSignal = async () => {
     setGenerating(true)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30000)
     try {
-      const response = await fetch('/api/generate-signal', {
+      const res = await fetch('/api/generate-signal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           symbol: formData.symbol,
           interval: formData.timeframe,
-          strategy: formData.strategy,
           rrRatio: formData.rrRatio
-        })
+        }),
+        signal: controller.signal
       })
-      const data = await response.json()
+      clearTimeout(timeout)
+      const data = await res.json()
       if (data.success) {
-        setSignal(data.signal)
-        setCurrentPrice(data.currentPrice)
+        if (data.hasSignal && data.signal) {
+          setSignal(data.signal)
+          setCurrentPrice(data.currentPrice)
+        } else {
+          // No valid zone found – show the explanation message
+          alert(data.message || 'No valid demand/supply zone found. Please try a different asset or timeframe.')
+          setSignal(null)
+          setCurrentPrice(null)
+        }
       } else {
         alert(data.error || 'Failed to generate signal')
       }
-    } catch (error) {
-      alert('Error generating signal')
+    } catch (err) {
+      if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') alert('Request timed out')
+      else alert('Network error')
     } finally {
       setGenerating(false)
     }
   }
 
   const handleSaveSignal = async () => {
-    if (!user) return
-    if (!signal) {
-      alert('No signal generated yet')
-      return
-    }
+    console.log('Saving signal:',signal)
+    if (!user) { alert('Please login'); router.push('/signin'); return }
+    if (!signal) { alert('No signal generated'); return }
     setLoading(true)
-    try {
-      const token = await getAccessToken()
-      if (!token) {
-        alert('Session expired. Please sign in again.')
-        router.push('/signin')
-        return
-      }
-      const response = await fetch('/api/save-signal', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          symbol: formData.symbol,
-          timeframe: formData.timeframe,
-          rrRatio: formData.rrRatio,
-          strategy: formData.strategy,
-          direction: signal.direction,
-          entry: signal.entry,
-          stopLoss: signal.stopLoss,
-          takeProfit: signal.takeProfit
-        })
+    const token = await getAccessToken()
+    console.log('Access token:', token)
+    if (!token) { alert('Session expired'); router.push('/signin'); return }
+    const res = await fetch('/api/save-signal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        symbol: formData.symbol,
+        timeframe: formData.timeframe,
+        rrRatio: formData.rrRatio,
+        strategy: 'demand_supply',
+        direction: signal.direction,
+        entry: signal.entry,
+        stopLoss: signal.stopLoss,
+        takeProfit: signal.takeProfit
       })
-      const data = await response.json()
-      if (data.success) {
-        setSignal(null)
-        fetchSavedSignals()
-      } else {
-        alert(data.error || 'Failed to save signal')
-      }
-    } catch (error) {
-      console.error('Save error:', error)
-      alert('Error saving signal')
-    } finally {
-      setLoading(false)
-    }
+    })
+    const data = await res.json()
+    if (data.success) {
+      setSignal(null)
+      fetchSavedSignals()
+    } else alert(data.error || 'Failed to save')
+    setLoading(false)
   }
 
-  const handleDeleteSignal = async (signalId: string) => {
+  const handleDeleteSignal = async (id: string) => {
     if (!confirm('Delete this signal?')) return
-    try {
-      const token = await getAccessToken()
-      const response = await fetch('/api/delete-signal', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ signalId })
-      })
-      if (response.ok) {
-        setSavedSignals(savedSignals.filter(s => s.id !== signalId))
-      } else {
-        alert('Failed to delete')
-      }
-    } catch (error) {
-      alert('Error deleting')
-    }
+    const token = await getAccessToken()
+    await fetch(`/api/delete-signal`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ signalId: id })
+    })
+    fetchSavedSignals()
   }
-
-  const filteredSignals = filterStrategy === 'all'
-    ? savedSignals
-    : savedSignals.filter(s => s.strategy === filterStrategy)
 
   return (
     <div className="max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">Generate Trading Signal</h1>
+      <h1 className="text-3xl font-bold mb-8">Demand & Supply Signal Generator</h1>
 
-      <SignalGeneratorForm
-        formData={formData}
-        setFormData={setFormData}
-        handleGenerateSignal={handleGenerateSignal}
-        generating={generating}
-        currencyPairs={assets}
-        timeFrames={timeFrames}
-        strategies={strategies}
-      />
-
-      <GeneratedSignalDisplay
-        signal={signal}
-        currentPrice={currentPrice}
-        loading={loading}
-        user={user}
-        onSave={handleSaveSignal}
-      />
-
-      {/* Saved Signals Section */}
-      <div className="mt-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">My Saved Signals</h2>
+      {/* Input Form */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
-            <label className="text-sm text-gray-600 mr-2">Filter by strategy:</label>
-            <select
-              value={filterStrategy}
-              onChange={(e) => setFilterStrategy(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-1 text-sm"
-            >
-              <option value="all">All Strategies</option>
-              {strategies.map(strat => (
-                <option key={strat} value={strat}>
-                  {strat.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                </option>
-              ))}
+            <label className="block text-sm font-medium mb-2">Symbol</label>
+            <select value={formData.symbol} onChange={e => setFormData({ ...formData, symbol: e.target.value })} className="w-full border rounded px-3 py-2">
+              {assets.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
-        </div>
-
-        {filteredSignals.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-6 text-center text-gray-500">
-            {filterStrategy === 'all'
-              ? 'No saved signals yet. Generate and save one above.'
-              : `No saved signals for the selected strategy.`}
+          <div>
+            <label className="block text-sm font-medium mb-2">Timeframe</label>
+            <select value={formData.timeframe} onChange={e => setFormData({ ...formData, timeframe: e.target.value })} className="w-full border rounded px-3 py-2">
+              {timeFrames.map(tf => <option key={tf} value={tf}>{tf}</option>)}
+            </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Risk‑Reward Ratio</label>
+            <input type="number" step="0.5" min="0.5" max="5" value={formData.rrRatio} onChange={e => setFormData({ ...formData, rrRatio: parseFloat(e.target.value) })} className="w-full border rounded px-3 py-2" />
+            <p className="text-xs text-gray-500 mt-1">1:{formData.rrRatio}</p>
+          </div>
+        </div>
+        <button onClick={handleGenerateSignal} disabled={generating} className="mt-6 w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:opacity-50">
+          {generating ? 'Generating...' : 'Generate Signal'}
+        </button>
+      </div>
+
+      {/* Only show signal card if a valid signal exists */}
+      {signal && signal.entry > 0 && currentPrice && (
+        <GeneratedSignalDisplay
+          signal={signal}
+          currentPrice={currentPrice}
+          loading={loading}
+          user={user}
+          onSave={handleSaveSignal}
+        />
+      )}
+
+      {/* Saved Signals */}
+      <div className="mt-8">
+        <h2 className="text-2xl font-bold mb-4">My Saved Signals</h2>
+        {savedSignals.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-md p-6 text-center text-gray-500">No saved signals yet.</div>
         ) : (
           <div className="space-y-4">
-            {filteredSignals.map((signal) => (
-              <SignalCard
-                key={signal.id}
-                signal={signal}
-                onDelete={handleDeleteSignal}
-              />
-            ))}
+            {savedSignals.map(s => <SignalCard key={s.id} signal={s} onDelete={handleDeleteSignal} />)}
           </div>
         )}
       </div>

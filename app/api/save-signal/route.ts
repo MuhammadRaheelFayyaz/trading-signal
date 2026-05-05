@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
         symbol,
         timeframe,
         rr_ratio: rrRatio,
-        strategy,
+        strategy:'demand_supply',
         direction,
         entry_price: entry,
         stop_loss: stopLoss,
