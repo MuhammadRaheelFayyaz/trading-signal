@@ -21,7 +21,7 @@ function mapTimeframeToInterval(timeframe: string): string {
 }
 
 async function validateSignalOutcome(signal: any) {
-  const rawEntryTime = signal.entryTime || signal.created_at;
+  const rawEntryTime = signal.entryTime;
   if (!rawEntryTime) return;
   const entryTime = new Date(rawEntryTime).getTime();
   if (isNaN(entryTime)) return;
@@ -48,9 +48,8 @@ async function validateSignalOutcome(signal: any) {
             (signal.direction === 'short' && low <= signal.entry_price)) {
           await supabaseAdmin
             .from('signals')
-            .update({ status: 'active' })
+            .update({ status: 'active', entryTime: new Date().toISOString() })
             .eq('id', signal.id);
-          // After activation, continue checking TP/SL on same bar
           entryHit = true;
         }
       }
@@ -58,18 +57,19 @@ async function validateSignalOutcome(signal: any) {
       // 2. ACTIVE -> WIN/LOSS: TP or SL hit
       const currentStatus = entryHit ? 'active' : signal.status;
       if (currentStatus === 'active') {
+        const newEntryTime = new Date().toISOString();
         if (signal.direction === 'long') {
           if (high >= signal.take_profit) {
             await supabaseAdmin
               .from('signals')
-              .update({ status: 'win', outcome: 'win' })
+              .update({ status: 'win', outcome: 'win', entryTime: newEntryTime })
               .eq('id', signal.id);
             return;
           }
           if (low <= signal.stop_loss) {
             await supabaseAdmin
               .from('signals')
-              .update({ status: 'loss', outcome: 'loss' })
+              .update({ status: 'loss', outcome: 'loss', entryTime: newEntryTime })
               .eq('id', signal.id);
             return;
           }
@@ -77,14 +77,14 @@ async function validateSignalOutcome(signal: any) {
           if (low <= signal.take_profit) {
             await supabaseAdmin
               .from('signals')
-              .update({ status: 'win', outcome: 'win' })
+              .update({ status: 'win', outcome: 'win', entryTime: newEntryTime })
               .eq('id', signal.id);
             return;
           }
           if (high >= signal.stop_loss) {
             await supabaseAdmin
               .from('signals')
-              .update({ status: 'loss', outcome: 'loss' })
+              .update({ status: 'loss', outcome: 'loss', entryTime: newEntryTime })
               .eq('id', signal.id);
             return;
           }
