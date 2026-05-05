@@ -126,7 +126,8 @@ export function demandSupplyStrategy(candles: Candle[], rrRatio: number): Signal
       entry: 0,
       stopLoss: 0,
       takeProfit: 0,
-      explanation: 'Insufficient data (need at least 30 candles).'
+      explanation: 'Insufficient data (need at least 30 candles).',
+      entryTime: new Date().toISOString()
     };
   }
   const atr = calculateATR(candles, 14);
@@ -166,7 +167,7 @@ export function demandSupplyStrategy(candles: Candle[], rrRatio: number): Signal
     const risk = entry - stopLoss;
     const takeProfit = entry + risk * rrRatio;
     const explanation = `DEMAND ZONE | Zone: ${zone.lower.toFixed(5)} - ${zone.upper.toFixed(5)} | Base candles: ${zone.baseCount} | Distance: ${zone.distanceToPrice.toFixed(5)} | Entry: ${entry.toFixed(5)} | SL: ${stopLoss.toFixed(5)} | TP: ${takeProfit.toFixed(5)}`;
-    return { direction: 'long', entry, stopLoss, takeProfit, explanation };
+    return { direction: 'long', entry, stopLoss, takeProfit, explanation, entryTime: new Date().toISOString() };
   }
 
   // Nearest supply zone
@@ -177,7 +178,7 @@ export function demandSupplyStrategy(candles: Candle[], rrRatio: number): Signal
     const risk = stopLoss - entry;
     const takeProfit = entry - risk * rrRatio;
     const explanation = `SUPPLY ZONE | Zone: ${zone.lower.toFixed(5)} - ${zone.upper.toFixed(5)} | Base candles: ${zone.baseCount} | Distance: ${zone.distanceToPrice.toFixed(5)} | Entry: ${entry.toFixed(5)} | SL: ${stopLoss.toFixed(5)} | TP: ${takeProfit.toFixed(5)}`;
-    return { direction: 'short', entry, stopLoss, takeProfit, explanation };
+    return { direction: 'short', entry, stopLoss, takeProfit, explanation, entryTime: new Date().toISOString() };
   }
 
   // No zones found
@@ -186,6 +187,7 @@ export function demandSupplyStrategy(candles: Candle[], rrRatio: number): Signal
     entry: 0,
     stopLoss: 0,
     takeProfit: 0,
-    explanation: `No valid demand/supply zones detected. Try a different instrument or timeframe.`
+    explanation: `No valid demand/supply zones detected. Try a different instrument or timeframe.`,
+    entryTime: new Date().toISOString()
   };
 }

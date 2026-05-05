@@ -21,9 +21,16 @@ function mapTimeframeToInterval(timeframe: string): string {
 }
 
 async function validateSignalOutcome(signal: any) {
-  const entryTime = new Date(signal.created_at).getTime();
-  const interval = mapTimeframeToInterval(signal.timeframe);
-  const url = `https://api.twelvedata.com/time_series?symbol=${signal.symbol}&interval=${interval}&outputsize=500&apikey=${TWELVEDATA_API_KEY}`;
+  // Use entryTime if available, otherwise fallback to created_at
+  const rawEntryTime = signal.entryTime || signal.created_at;
+  if (!rawEntryTime) return null;
+  const entryTime = new Date(rawEntryTime).getTime();
+  if (isNaN(entryTime)) return null;
+
+  const interval = mapTimeframeToInterval('15mint');
+  const startDate = new Date(entryTime).toISOString();
+  const endDate = new Date().toISOString();
+  const url = `https://api.twelvedata.com/time_series?symbol=${signal.symbol}&interval=${interval}&start_date=${startDate}&end_date=${endDate}&apikey=${TWELVEDATA_API_KEY}`;
 
   try {
     const res = await fetch(url);
@@ -31,42 +38,37 @@ async function validateSignalOutcome(signal: any) {
     if (!data.values) return null;
 
     let entryHit = false;
-    let entryHitTime = 0;
 
     for (const bar of data.values) {
-      const barTime = new Date(bar.datetime).getTime();
-      if (barTime <= entryTime) continue;
+      // Parse bar.datetime as UTC (Twelve Data returns without 'Z')
+      const barTime = new Date(bar.datetime.replace(' ', 'T') + 'Z').getTime();
+      if (barTime <= entryTime) continue; // skip bars at or before signal creation
 
       const high = parseFloat(bar.high);
       const low = parseFloat(bar.low);
 
-      // Check if entry price has been reached (for the first time)
       if (!entryHit) {
-        if (signal.direction === 'long') {
-          if (high >= signal.entry_price) {
-            entryHit = true;
-            entryHitTime = barTime;
-          }
-        } else { // short
-          if (low <= signal.entry_price) {
-            entryHit = true;
-            entryHitTime = barTime;
-          }
+        if (signal.direction === 'long' && high >= signal.entry_price) {
+          entryHit = true;
+          continue;
         }
-        continue; // continue to next bar after entry is hit
+        if (signal.direction === 'short' && low <= signal.entry_price) {
+          entryHit = true;
+          continue;
+        }
       }
 
-      // Once entry is hit, check for TP or SL
-      if (signal.direction === 'long') {
-        if (high >= signal.take_profit) return 'win';
-        if (low <= signal.stop_loss) return 'loss';
-      } else {
-        if (low <= signal.take_profit) return 'win';
-        if (high >= signal.stop_loss) return 'loss';
+      if (entryHit) {
+        if (signal.direction === 'long') {
+          if (high >= signal.take_profit) return 'win';
+          if (low <= signal.stop_loss) return 'loss';
+        } else {
+          if (low <= signal.take_profit) return 'win';
+          if (high >= signal.stop_loss) return 'loss';
+        }
       }
     }
-
-    return null; // trade never triggered or no TP/SL hit after entry
+    return null;
   } catch (error) {
     console.error(`Error validating signal ${signal.id}:`, error);
     return null;
@@ -75,7 +77,6 @@ async function validateSignalOutcome(signal: any) {
 
 export async function GET(req: Request) {
   try {
-    // Only get signals that have no outcome yet (active)
     const { data: signals, error } = await supabaseAdmin
       .from('signals')
       .select('*')

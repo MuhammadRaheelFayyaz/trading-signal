@@ -17,7 +17,8 @@ export interface SignalResult {
   entry: number
   stopLoss: number
   takeProfit: number
-  explanation: string
+  explanation: string,
+  entryTime: string
 }
 
 

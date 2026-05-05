@@ -15,30 +15,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { symbol, timeframe, rrRatio, strategy, direction, entry, stopLoss, takeProfit } = await request.json()
+    const { symbol, timeframe, rrRatio, strategy, direction, entry, stopLoss, takeProfit, entryTime } = await request.json();
+    // Ensure entryTime is a proper Date object
+    const finalEntryTime = entryTime ? new Date(entryTime).toISOString() : new Date().toISOString();
 
-    const { data: signal, error: insertError } = await supabase
+    const { data, error } = await supabase
       .from('signals')
       .insert({
         user_id: user.id,
         symbol,
         timeframe,
         rr_ratio: rrRatio,
-        strategy:'demand_supply',
+        strategy,
         direction,
         entry_price: entry,
         stop_loss: stopLoss,
         take_profit: takeProfit,
-        // No expires_at
+        entryTime: finalEntryTime, // full timestamp
       })
       .select()
-      .single()
+      .single();
 
-    if (insertError) {
-      return NextResponse.json({ error: insertError.message }, { status: 400 })
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true, signal })
+    return NextResponse.json({ success: true, data })
   } catch (error) {
     console.error('Save signal error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

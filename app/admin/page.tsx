@@ -14,18 +14,24 @@ export default function AdminPage() {
   const [newPassword, setNewPassword] = useState('')
   const [newActive, setNewActive] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [token, setToken] = useState<string | null>('')
   const supabase = createClient()
 
+  
+
+
   useEffect(() => {
-    checkAdminAndFetch()
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) router.push('/signin')
+      else {
+          setToken(session.access_token)
+          checkAdminAndFetch()
+        }
+    })
   }, [])
 
   const checkAdminAndFetch = async () => {
-    const token = await getAccessToken()
-    if (!token) {
-      router.push('/signin')
-      return
-    }
+  
 
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
@@ -39,11 +45,11 @@ export default function AdminPage() {
         return
       }
       setIsAdmin(true)
-      fetchUsers(token)
+      fetchUsers()
     }
   }
 
-  const fetchUsers = async (token: string) => {
+  const fetchUsers = async () => {
     const res = await fetch('/api/admin/users', {
       headers: { Authorization: `Bearer ${token}` }
     })
@@ -54,8 +60,7 @@ export default function AdminPage() {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
-    const token = await getAccessToken()
-    if (!token) return
+   
     setCreating(true)
     const res = await fetch('/api/admin/create-user', {
       method: 'POST',
@@ -73,7 +78,7 @@ export default function AdminPage() {
       alert('User created successfully')
       setNewEmail('')
       setNewPassword('')
-      fetchUsers(token)
+      fetchUsers()
     } else {
       const error = await res.json()
       alert(error.error || 'Failed to create user')
@@ -82,8 +87,7 @@ export default function AdminPage() {
   }
 
   const handleToggleStatus = async (userId: string, currentActive: boolean) => {
-    const token = await getAccessToken()
-    if (!token) return
+    
     const res = await fetch('/api/admin/toggle-status', {
       method: 'POST',
       headers: {
@@ -94,15 +98,13 @@ export default function AdminPage() {
     })
     if (res.ok) {
       alert(`User ${!currentActive ? 'activated' : 'deactivated'}`)
-      fetchUsers(token)
+      fetchUsers()
     } else {
       alert('Failed to update status')
     }
   }
 
   const handleRecordPayment = async (userId: string) => {
-    const token = await getAccessToken()
-    if (!token) return
     const res = await fetch('/api/admin/update-payment', {
       method: 'POST',
       headers: {
@@ -113,7 +115,7 @@ export default function AdminPage() {
     })
     if (res.ok) {
       alert('Payment recorded – user activated')
-      fetchUsers(token)
+      fetchUsers()
     } else {
       alert('Failed to record payment')
     }

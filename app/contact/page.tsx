@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient, getAccessToken } from '@/app/lib/supabaseClient'
 
@@ -10,15 +10,21 @@ export default function ContactPage() {
   const [description, setDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
+  const [token, setToken] = useState<string | null>(null)
   const supabase = createClient()
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) router.push('/signin')
+      else {
+        setToken(session.access_token)
+      }
+    })
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const token = await getAccessToken()
-    if (!token) {
-      router.push('/signin')
-      return
-    }
+   
     setSubmitting(true)
     setMessage('')
     const res = await fetch('/api/admin/strategy-requests/submit', {

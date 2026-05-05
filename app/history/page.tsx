@@ -12,18 +12,20 @@ export default function HistoryPage() {
   const [dateFilter, setDateFilter] = useState('all')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
+  const [token, setToken] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) router.push('/signin')
-      else fetchClosedTrades()
+      else {
+        setToken(session.access_token)
+        fetchClosedTrades()
+      }
     })
   }, [])
 
   const fetchClosedTrades = async () => {
-    const token = await getAccessToken()
-    if (!token) return
     let url = '/api/trades?status=closed'
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
     const data = await res.json()
@@ -32,8 +34,7 @@ export default function HistoryPage() {
   }
 
   const applyDateFilter = async () => {
-    const token = await getAccessToken()
-    if (!token) return
+ 
     let startDate: string | undefined, endDate: string | undefined
     const now = new Date()
     switch (dateFilter) {
@@ -64,7 +65,6 @@ export default function HistoryPage() {
         return
     }
     if (startDate && endDate) {
-      const token = await getAccessToken()
       const res = await fetch(`/api/trades?status=closed&startDate=${startDate}&endDate=${endDate}`, {
         headers: { Authorization: `Bearer ${token}` }
       })

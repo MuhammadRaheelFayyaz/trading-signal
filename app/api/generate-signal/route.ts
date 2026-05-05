@@ -31,22 +31,23 @@ export async function POST(request: NextRequest) {
       timestamp: new Date(candle.datetime)
     })).reverse()
 
-   const signal = demandSupplyStrategy(candles, rrRatio)
-  const hasSignal = signal.entry > 0 && signal.stopLoss > 0 && signal.takeProfit > 0
+    const signal = demandSupplyStrategy(candles, rrRatio)
+    const hasSignal = signal.entry > 0 && signal.stopLoss > 0 && signal.takeProfit > 0
 
-  return NextResponse.json({
-    success: true,
-    hasSignal,
-    signal: hasSignal ? {
-      direction: signal.direction,
-      entry: signal.entry,
-      stopLoss: signal.stopLoss,
-      takeProfit: signal.takeProfit,
-      explanation: signal.explanation
-    } : null,
-    currentPrice: candles[candles.length - 1].close,
-    message: signal.explanation
-  })
+    return NextResponse.json({
+      success: true,
+      hasSignal,
+      signal: hasSignal ? {
+        direction: signal.direction,
+        entry: signal.entry,
+        stopLoss: signal.stopLoss,
+        takeProfit: signal.takeProfit,
+        explanation: signal.explanation,
+        entryTime: signal.entryTime  // send as string
+      } : null,
+      currentPrice: candles[candles.length - 1].close,
+      message: hasSignal ? null : signal.explanation
+    });
   } catch (error) {
     console.error('Generate signal error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

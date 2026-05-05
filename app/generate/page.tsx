@@ -17,6 +17,7 @@ export default function GeneratePage() {
   const [user, setUser] = useState<any>(null)
   const [savedSignals, setSavedSignals] = useState<Signal[]>([])
   const [fetchingSignals, setFetchingSignals] = useState(false)
+  const [token, setToken] = useState<string | null>(null)
   const supabase = createClient()
 
   const [formData, setFormData] = useState({
@@ -28,7 +29,10 @@ export default function GeneratePage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) router.push('/signin')
-      else { setUser(session.user); fetchSavedSignals() }
+      else {
+    console.log('Session found:', session) 
+        setToken(session.access_token)
+        setUser(session.user); fetchSavedSignals() }
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) router.push('/signin')
@@ -90,12 +94,10 @@ export default function GeneratePage() {
     if (!user) { alert('Please login'); router.push('/signin'); return }
     if (!signal) { alert('No signal generated'); return }
     setLoading(true)
-    const token = await getAccessToken()
-    console.log('Access token:', token)
-    if (!token) { alert('Session expired'); router.push('/signin'); return }
+   
     const res = await fetch('/api/save-signal', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token??''}` },
       body: JSON.stringify({
         symbol: formData.symbol,
         timeframe: formData.timeframe,
@@ -104,9 +106,10 @@ export default function GeneratePage() {
         direction: signal.direction,
         entry: signal.entry,
         stopLoss: signal.stopLoss,
-        takeProfit: signal.takeProfit
+        takeProfit: signal.takeProfit,
+        entryTime: signal.entryTime   // ✅ send the timestamp
       })
-    })
+    });
     const data = await res.json()
     if (data.success) {
       setSignal(null)
@@ -117,7 +120,7 @@ export default function GeneratePage() {
 
   const handleDeleteSignal = async (id: string) => {
     if (!confirm('Delete this signal?')) return
-    const token = await getAccessToken()
+   
     await fetch(`/api/delete-signal`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

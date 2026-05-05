@@ -19,18 +19,21 @@ export default function SuccessRatioPage() {
   const [filteredStats, setFilteredStats] = useState<StrategySymbolStat[]>([])
   const [selectedAsset, setSelectedAsset] = useState<string>('all')
   const [loading, setLoading] = useState(true)
+  const [token, setToken] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) router.push('/signin')
-      else fetchStats()
+      else {
+          setToken(session.access_token)
+          fetchStats()
+        }
     })
   }, [])
 
   const fetchStats = async () => {
-    const token = await getAccessToken()
-    if (!token) return
+    
     const res = await fetch('/api/success-ratio', {
       headers: { Authorization: `Bearer ${token}` }
     })

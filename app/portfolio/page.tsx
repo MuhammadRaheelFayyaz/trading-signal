@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient, getAccessToken } from '@/app/lib/supabaseClient'
+import { createClient } from '@/app/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { assets } from '@/app/data'
 import { ActiveTrade } from '@/app/types'
@@ -16,6 +16,7 @@ export default function PortfolioPage() {
   const [exitPrice, setExitPrice] = useState('')
   const [exitDate, setExitDate] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [token, setToken] = useState<string | null>(null)
   const supabase = createClient()
 
   const [form, setForm] = useState({
@@ -42,13 +43,17 @@ export default function PortfolioPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) router.push('/signin')
-      else fetchActiveTrades()
+      else {
+        setToken(session.access_token)
+        fetchActiveTrades()
+      }
     })
   }, [])
 
+
+
   const fetchActiveTrades = async () => {
-    const token = await getAccessToken()
-    if (!token) return
+ 
     const res = await fetch('/api/trades?status=active', {
       headers: { Authorization: `Bearer ${token}` }
     })
@@ -64,8 +69,7 @@ export default function PortfolioPage() {
       return
     }
     setIsSubmitting(true)
-    const token = await getAccessToken()
-    if (!token) return
+    
     const res = await fetch('/api/trades', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -94,7 +98,7 @@ export default function PortfolioPage() {
       return
     }
     setIsSubmitting(true)
-    const token = await getAccessToken()
+  
     const res = await fetch(`/api/trades/close/${closingId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -114,7 +118,6 @@ export default function PortfolioPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this active trade?')) return
-    const token = await getAccessToken()
     await fetch(`/api/trades?id=${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
     fetchActiveTrades()
   }
