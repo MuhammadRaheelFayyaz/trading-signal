@@ -21,35 +21,52 @@ function mapTimeframeToInterval(timeframe: string): string {
 }
 
 async function validateSignalOutcome(signal: any) {
-  // Convert creation time to Date object
   const entryTime = new Date(signal.created_at).getTime();
-
   const interval = mapTimeframeToInterval(signal.timeframe);
-const url = `https://api.twelvedata.com/time_series?symbol=${signal.symbol}&interval=${interval}&outputsize=500&apikey=${TWELVEDATA_API_KEY}`;
+  const url = `https://api.twelvedata.com/time_series?symbol=${signal.symbol}&interval=${interval}&outputsize=500&apikey=${TWELVEDATA_API_KEY}`;
+
   try {
     const res = await fetch(url);
-    const data = await res.json()
+    const data = await res.json();
     if (!data.values) return null;
 
+    let entryHit = false;
+    let entryHitTime = 0;
+
     for (const bar of data.values) {
-      // Parse bar timestamp (Twelve Data returns datetime like "2024-01-15 14:30:00")
       const barTime = new Date(bar.datetime).getTime();
-      // Skip bars that occurred at or before signal creation
       if (barTime <= entryTime) continue;
+
       const high = parseFloat(bar.high);
       const low = parseFloat(bar.low);
 
+      // Check if entry price has been reached (for the first time)
+      if (!entryHit) {
+        if (signal.direction === 'long') {
+          if (high >= signal.entry_price) {
+            entryHit = true;
+            entryHitTime = barTime;
+          }
+        } else { // short
+          if (low <= signal.entry_price) {
+            entryHit = true;
+            entryHitTime = barTime;
+          }
+        }
+        continue; // continue to next bar after entry is hit
+      }
+
+      // Once entry is hit, check for TP or SL
       if (signal.direction === 'long') {
         if (high >= signal.take_profit) return 'win';
         if (low <= signal.stop_loss) return 'loss';
-      } else { // short
-        if (low <= signal.take_profit) {
-          return 'win'};
+      } else {
+        if (low <= signal.take_profit) return 'win';
         if (high >= signal.stop_loss) return 'loss';
       }
     }
-    // No hit after entry
-    return null;
+
+    return null; // trade never triggered or no TP/SL hit after entry
   } catch (error) {
     console.error(`Error validating signal ${signal.id}:`, error);
     return null;
