@@ -30,7 +30,6 @@ export default function GeneratePage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) router.push('/signin')
       else {
-    console.log('Session found:', session) 
         setToken(session.access_token)
         setUser(session.user); fetchSavedSignals() }
     })

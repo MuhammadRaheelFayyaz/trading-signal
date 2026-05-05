@@ -26,7 +26,7 @@ async function validateSignalOutcome(signal: any) {
   const entryTime = new Date(rawEntryTime).getTime();
   if (isNaN(entryTime)) return;
 
-  const interval = mapTimeframeToInterval('15min');
+  const interval = mapTimeframeToInterval('1min');
   const startDate = new Date(entryTime).toISOString();
   const endDate = new Date().toISOString();
   const url = `https://api.twelvedata.com/time_series?symbol=${signal.symbol}&interval=${interval}&start_date=${startDate}&end_date=${endDate}&apikey=${TWELVEDATA_API_KEY}`;
