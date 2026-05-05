@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
         stop_loss: stopLoss,
         take_profit: takeProfit,
         entryTime: finalEntryTime, // full timestamp
+        status: 'wait', 
       })
       .select()
       .single();

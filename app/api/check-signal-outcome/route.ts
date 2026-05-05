@@ -21,13 +21,12 @@ function mapTimeframeToInterval(timeframe: string): string {
 }
 
 async function validateSignalOutcome(signal: any) {
-  // Use entryTime if available, otherwise fallback to created_at
   const rawEntryTime = signal.entryTime || signal.created_at;
-  if (!rawEntryTime) return null;
+  if (!rawEntryTime) return;
   const entryTime = new Date(rawEntryTime).getTime();
-  if (isNaN(entryTime)) return null;
+  if (isNaN(entryTime)) return;
 
-  const interval = mapTimeframeToInterval('5mint');
+  const interval = mapTimeframeToInterval('15min');
   const startDate = new Date(entryTime).toISOString();
   const endDate = new Date().toISOString();
   const url = `https://api.twelvedata.com/time_series?symbol=${signal.symbol}&interval=${interval}&start_date=${startDate}&end_date=${endDate}&apikey=${TWELVEDATA_API_KEY}`;
@@ -35,68 +34,86 @@ async function validateSignalOutcome(signal: any) {
   try {
     const res = await fetch(url);
     const data = await res.json();
-    if (!data.values) return null;
+    if (!data.values) return;
 
     let entryHit = false;
 
     for (const bar of data.values) {
-      // Parse bar.datetime as UTC (Twelve Data returns without 'Z')
       const barTime = new Date(bar.datetime.replace(' ', 'T') + 'Z').getTime();
-      if (barTime <= entryTime) continue; // skip bars at or before signal creation
+      if (barTime <= entryTime) continue;
 
       const high = parseFloat(bar.high);
       const low = parseFloat(bar.low);
 
-      if (!entryHit) {
-        if (signal.direction === 'long' && high >= signal.entry_price) {
+      // 1. WAIT -> ACTIVE: entry price hit
+      if (signal.status === 'wait') {
+        if ((signal.direction === 'long' && high >= signal.entry_price) ||
+            (signal.direction === 'short' && low <= signal.entry_price)) {
+          await supabaseAdmin
+            .from('signals')
+            .update({ status: 'active' })
+            .eq('id', signal.id);
+          // After activation, continue checking TP/SL on same bar
           entryHit = true;
-          continue;
-        }
-        if (signal.direction === 'short' && low <= signal.entry_price) {
-          entryHit = true;
-          continue;
         }
       }
 
-      if (entryHit) {
+      // 2. ACTIVE -> WIN/LOSS: TP or SL hit
+      const currentStatus = entryHit ? 'active' : signal.status;
+      if (currentStatus === 'active') {
         if (signal.direction === 'long') {
-          if (high >= signal.take_profit) return 'win';
-          if (low <= signal.stop_loss) return 'loss';
-        } else {
-          if (low <= signal.take_profit) return 'win';
-          if (high >= signal.stop_loss) return 'loss';
+          if (high >= signal.take_profit) {
+            await supabaseAdmin
+              .from('signals')
+              .update({ status: 'win', outcome: 'win' })
+              .eq('id', signal.id);
+            return;
+          }
+          if (low <= signal.stop_loss) {
+            await supabaseAdmin
+              .from('signals')
+              .update({ status: 'loss', outcome: 'loss' })
+              .eq('id', signal.id);
+            return;
+          }
+        } else { // short
+          if (low <= signal.take_profit) {
+            await supabaseAdmin
+              .from('signals')
+              .update({ status: 'win', outcome: 'win' })
+              .eq('id', signal.id);
+            return;
+          }
+          if (high >= signal.stop_loss) {
+            await supabaseAdmin
+              .from('signals')
+              .update({ status: 'loss', outcome: 'loss' })
+              .eq('id', signal.id);
+            return;
+          }
         }
       }
     }
-    return null;
   } catch (error) {
     console.error(`Error validating signal ${signal.id}:`, error);
-    return null;
   }
 }
 
 export async function GET(req: Request) {
   try {
+    // Process only signals that are still waiting or active
     const { data: signals, error } = await supabaseAdmin
       .from('signals')
       .select('*')
-      .is('outcome', null);
+      .in('status', ['wait', 'active']);
 
     if (error) throw error;
 
-    let updatedCount = 0;
     for (const signal of signals) {
-      const outcome = await validateSignalOutcome(signal);
-      if (outcome) {
-        await supabaseAdmin
-          .from('signals')
-          .update({ outcome })
-          .eq('id', signal.id);
-        updatedCount++;
-      }
+      await validateSignalOutcome(signal);
     }
 
-    return NextResponse.json({ message: `Validated ${updatedCount} signals.` });
+    return NextResponse.json({ message: `Processed ${signals.length} signals.` });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

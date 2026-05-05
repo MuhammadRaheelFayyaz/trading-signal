@@ -9,7 +9,8 @@ export interface Signal {
   stop_loss: number
   take_profit: number
   created_at: string
-  outcome: 'win' | 'loss' | null
+  outcome: 'win' | 'loss' | null,
+  status: 'wait' | 'active' | 'win' | 'loss'
 }
 
 export interface SignalResult {

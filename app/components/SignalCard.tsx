@@ -19,21 +19,10 @@ export default function SignalCard({ signal, onDelete }: SignalCardProps) {
           </p>
         </div>
         <div className="flex space-x-2">
-          {!s.outcome && (
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-              Active
-            </span>
-          )}
-          {s.outcome === 'win' && (
-            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-              Win
-            </span>
-          )}
-          {s.outcome === 'loss' && (
-            <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
-              Loss
-            </span>
-          )}
+          {signal.status === 'wait' && <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">Waiting for entry</span>}
+          {signal.status === 'active' && <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">Active</span>}
+          {signal.status === 'win' && <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Win</span>}
+          {signal.status === 'loss' && <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Loss</span>}
         </div>
       </div>
 
