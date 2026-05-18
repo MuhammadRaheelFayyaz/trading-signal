@@ -26,7 +26,7 @@ async function validateSignalOutcome(signal: any) {
   const entryTime = new Date(rawEntryTime).getTime();
   if (isNaN(entryTime)) return;
 
-  const interval = mapTimeframeToInterval('1min');
+  const interval = mapTimeframeToInterval(signal.timeframe);
   const startDate = new Date(entryTime).toISOString();
   const endDate = new Date().toISOString();
   const url = `https://api.twelvedata.com/time_series?symbol=${signal.symbol}&interval=${interval}&start_date=${startDate}&end_date=${endDate}&apikey=${TWELVEDATA_API_KEY}`;
@@ -35,9 +35,7 @@ async function validateSignalOutcome(signal: any) {
     const res = await fetch(url);
     const data = await res.json();
     if (!data.values) return;
-
     let entryHit = false;
-
     for (const bar of data.values) { 
       const high = parseFloat(bar.high);
       const low = parseFloat(bar.low);
